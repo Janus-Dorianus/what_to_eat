@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>今晚吃什么</title>
+<style>
+  :root{
+    --bg:#171310;
+    --panel:rgba(255,255,255,.055);
+    --line:rgba(255,255,255,.10);
+    --text:#f6efe7;
+    --muted:#a89a8c;
+    --accent:#ff7a45;
+    --accent-2:#ffb03a;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    min-height:100%;
+    font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,sans-serif;
+    color:var(--text);
+    background:
+      radial-gradient(900px 600px at 15% -10%, rgba(255,122,69,.20), transparent 60%),
+      radial-gradient(800px 600px at 100% 10%, rgba(255,176,58,.12), transparent 55%),
+      var(--bg);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:32px 20px;
+  }
+  .app{width:min(1000px,100%)}
+  header{text-align:center;margin-bottom:24px}
+  h1{
+    margin:0;
+    font-size:clamp(26px,4vw,40px);
+    letter-spacing:.08em;
+    font-weight:800;
+    background:linear-gradient(90deg,#ffd9a0,#ff7a45);
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+  }
+  .sub{margin:8px 0 0;color:var(--muted);font-size:13px;letter-spacing:.16em}
+  main{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:24px;align-items:start}
+
+  .wheel-panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:24px;
+    padding:22px 22px 24px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:18px;
+    backdrop-filter:blur(10px);
+    position:relative;
+    overflow:hidden;
+  }
+  .wheel-wrap{position:relative;width:min(74vw,400px);aspect-ratio:1;margin-top:6px}
+  canvas{width:100%;height:100%;display:block}
+  .pointer{
+    position:absolute;
+    top:2px;
+    left:50%;
+    transform:translateX(-50%);
+    width:0;height:0;
+    border-left:12px solid transparent;
+    border-right:12px solid transparent;
+    border-top:24px solid var(--accent);
+    filter:drop-shadow(0 3px 6px rgba(0,0,0,.45));
+    z-index:2;
+  }
+  .pointer::after{
+    content:"";
+    position:absolute;
+    left:-7px;top:-12px;
+    width:14px;height:14px;
+    border-radius:50%;
+    background:var(--accent);
+  }
+  .spin-btn{
+    width:min(74vw,400px);
+    border:none;
+    border-radius:999px;
+    padding:16px;
+    font-size:19px;
+    font-weight:800;
+    letter-spacing:.3em;
+    color:#2a1508;
+    cursor:pointer;
+    font-family:inherit;
+    background:linear-gradient(135deg,#ffd38a,#ff7a45 60%,#ff5f2e);
+    box-shadow:0 10px 26px rgba(255,102,45,.35);
+    transition:transform .15s,box-shadow .2s,filter .2s;
+  }
+  .spin-btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 14px 32px rgba(255,102,45,.45)}
+  .spin-btn:active:not(:disabled){transform:translateY(0) scale(.99)}
+  .spin-btn:disabled{filter:grayscale(.3) brightness(.85);cursor:default}
+
+  .list-panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:20px;
+    padding:16px;
+    backdrop-filter:blur(10px);
+  }
+  .panel-title{
+    display:flex;justify-content:space-between;align-items:baseline;
+    margin:2px 4px 12px;font-size:13px;color:var(--muted);letter-spacing:.08em;
+  }
+  .panel-title span:last-child{font-variant-numeric:tabular-nums}
+  .add-row{display:flex;gap:8px;margin-bottom:12px}
+  .add-row input{
+    flex:1;min-width:0;
+    background:rgba(0,0,0,.28);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:10px 12px;
+    color:var(--text);
+    font-size:14px;
+    font-family:inherit;
+    outline:none;
+    transition:border-color .18s,box-shadow .18s;
+  }
+  .add-row input::placeholder{color:#7c7065}
+  .add-row input:focus{border-color:rgba(255,122,69,.6);box-shadow:0 0 0 3px rgba(255,122,69,.15)}
+  .add-row button{
+    border:none;border-radius:10px;
+    padding:0 16px;
+    font-size:14px;font-weight:700;font-family:inherit;
+    color:#2a1508;cursor:pointer;
+    background:linear-gradient(135deg,#ffd38a,#ff7a45);
+    transition:filter .18s;
+  }
+  .add-row button:hover{filter:brightness(1.08)}
+  #list{list-style:none;margin:0;padding:0;max-height:430px;overflow:auto;display:flex;flex-direction:column;gap:6px}
+  #list::-webkit-scrollbar{width:6px}
+  #list::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:999px}
+  #list li{
+    display:flex;align-items:center;gap:10px;
+    padding:9px 10px;border-radius:10px;
+    background:rgba(255,255,255,.035);
+    transition:background .18s;
+  }
+  #list li:hover{background:rgba(255,255,255,.08)}
+  .dot{width:9px;height:9px;border-radius:50%;flex:none}
+  .name{flex:1;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .weight{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .del{
+    width:24px;height:24px;flex:none;
+    border-radius:7px;border:1px solid transparent;
+    background:transparent;color:var(--muted);
+    cursor:pointer;font-size:16px;line-height:1;
+    display:grid;place-items:center;
+    transition:.18s;
+  }
+  .del:hover{background:rgba(255,122,69,.15);color:#ffb08a;border-color:rgba(255,122,69,.3)}
+  .empty-tip{padding:14px 6px;color:#7c7065;font-size:13px;text-align:center}
+
+  .result{
+    position:fixed;inset:0;z-index:20;
+    display:grid;place-items:center;
+    background:rgba(10,7,5,.55);
+    backdrop-filter:blur(6px);
+    opacity:0;pointer-events:none;
+    transition:opacity .25s;
+  }
+  .result.show{opacity:1;pointer-events:auto}
+  .result-card{
+    width:min(88vw,340px);
+    padding:30px 24px 22px;
+    border-radius:22px;
+    text-align:center;
+    background:linear-gradient(160deg,#2b211a,#1b1511);
+    border:1px solid rgba(255,176,58,.35);
+    box-shadow:0 24px 60px rgba(0,0,0,.55);
+    transform:translateY(12px) scale(.96);
+    transition:transform .3s cubic-bezier(.2,.9,.3,1.2);
+  }
+  .result.show .result-card{transform:none}
+  .result-label{font-size:12px;letter-spacing:.4em;color:var(--muted)}
+  .result-name{
+    margin:12px 0 8px;
+    font-size:30px;font-weight:800;line-height:1.2;
+    background:linear-gradient(90deg,#ffe0ab,#ff8a52);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .result-note{font-size:12.5px;color:var(--muted)}
+  .result-close{
+    margin-top:20px;width:100%;
+    border:none;border-radius:999px;padding:12px;
+    font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;
+    color:#2a1508;
+    background:linear-gradient(135deg,#ffd38a,#ff7a45);
+  }
+  .result-close:hover{filter:brightness(1.06)}
+
+  .toast{
+    position:fixed;left:50%;bottom:34px;z-index:30;
+    padding:10px 18px;border-radius:999px;
+    background:rgba(30,24,19,.95);
+    border:1px solid var(--line);
+    color:var(--text);font-size:13px;
+    opacity:0;transform:translate(-50%,16px);
+    transition:.25s;pointer-events:none;
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+
+  @media (max-width:880px){
+    body{padding:22px 14px;align-items:flex-start}
+    main{grid-template-columns:1fr}
+    .wheel-wrap{width:min(80vw,360px)}
+    #list{max-height:300px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>今晚吃什么</h1>
+  </header>
+
+  <main>
+    <section class="wheel-panel">
+      <div class="wheel-wrap">
+        <canvas id="wheel"></canvas>
+        <div class="pointer"></div>
+      </div>
+      <button id="spinBtn" class="spin-btn">吃什么</button>
+    </section>
+
+    <aside class="list-panel">
+      <div class="panel-title"><span>店铺列表</span><span id="itemCount">0 家</span></div>
+      <div class="add-row">
+        <input id="newName" type="text" maxlength="20" placeholder="添加新店铺 / 菜品…" />
+        <button id="addBtn">添加</button>
+      </div>
+      <ul id="list"></ul>
+    </aside>
+  </main>
+</div>
+
+<div id="result" class="result">
+  <div class="result-card">
+    <div class="result-label">今晚就吃</div>
+    <div class="result-name" id="resultName"></div>
+    <div class="result-note" id="resultNote"></div>
+    <button class="result-close" id="resultClose">收下</button>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* 初始数据来自「今晚吃什么.csv」 */
+  var DEFAULTS = [
+    "明洋小馆","Q仔麻辣烫","沙市米粉","襄阳牛肉面","优悠家常菜",
+    "椒大喜铜炉火锅鸡","陕味油泼面","阿达西手抓饭","杨三胖","焱麻记鸡公煲",
+    "闹闹食屋","湘湘香","杨国福麻辣烫","大米先生","霸碗盖浇饭",
+    "云南过桥米线","吴妈妈朝鲜拌饭","厨匠炮崩鸡","学长大盘鸡","穆兰拉面",
+    "燃小面","沙县小吃","快递大厅黄焖鸡","柳州米粉"
+  ];
+  var STORAGE_KEY = "oinc_meal_v1";
+  var WINDOW = 7;        // 一次降权只影响最近 7 次抽选
+  var PENALTY = 0.5;     // 每次被抽中，权重乘以该系数
+
+  var state = loadState();
+  var rotation = 0;
+  var spinning = false;
+
+  var wrap = document.querySelector(".wheel-wrap");
+  var canvas = document.getElementById("wheel");
+  var ctx = canvas.getContext("2d");
+  var spinBtn = document.getElementById("spinBtn");
+  var listEl = document.getElementById("list");
+  var itemCountEl = document.getElementById("itemCount");
+  var newNameEl = document.getElementById("newName");
+  var addBtn = document.getElementById("addBtn");
+  var resultEl = document.getElementById("result");
+  var resultNameEl = document.getElementById("resultName");
+  var resultNoteEl = document.getElementById("resultNote");
+  var resultCloseEl = document.getElementById("resultClose");
+  var toastEl = document.getElementById("toast");
+
+  var size = 0;
+
+  /* ---------------- 数据存取 ---------------- */
+
+  function loadState(){
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        var saved = JSON.parse(raw);
+        if (saved && Array.isArray(saved.items)) {
+          var items = saved.items
+            .filter(function(it){ return it && typeof it.name === "string" && it.name; })
+            .map(function(it){ return { name: it.name }; });
+          if (items.length) {
+            var names = items.map(function(it){ return it.name; });
+            var history = Array.isArray(saved.history)
+              ? saved.history.filter(function(n){ return names.indexOf(n) !== -1; })
+              : [];
+            return { items: items, history: history.slice(-WINDOW) };
+          }
+        }
+      }
+    } catch (e) { /* 忽略损坏的本地数据 */ }
+    return {
+      items: DEFAULTS.map(function(name){ return { name: name }; }),
+      history: []
+    };
+  }
+
+  function saveState(){
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+  }
+
+  /* 权重 = PENALTY ^ 最近 7 次抽选中的被抽中次数 */
+  function weightOf(name){
+    var count = 0;
+    for (var i = 0; i < state.history.length; i++) {
+      if (state.history[i] === name) count++;
+    }
+    return Math.pow(PENALTY, count);
+  }
+
+  /* ---------------- 绘图 ---------------- */
+
+  function colorFor(index, total){
+    var hue = (index * 137.508 + 18) % 360;
+    var light = (index % 2 === 0) ? 58 : 48;
+    return "hsl(" + hue.toFixed(1) + ", 62%, " + light + "%)";
+  }
+
+  function computeSpans(items){
+    var weights = items.map(function(it){ return weightOf(it.name); });
+    var total = weights.reduce(function(s, w){ return s + w; }, 0) || 1;
+    var angle = -Math.PI / 2;
+    return items.map(function(it, idx){
+      var span = weights[idx] / total * Math.PI * 2;
+      var seg = { start: angle, span: span };
+      angle += span;
+      return seg;
+    });
+  }
+
+  function fitText(text, maxWidth){
+    if (ctx.measureText(text).width <= maxWidth) return text;
+    var s = text;
+    while (s.length > 1 && ctx.measureText(s + "…").width > maxWidth) {
+      s = s.slice(0, -1);
+    }
+    return s + "…";
+  }
+
+  function draw(){
+    if (!size) return;
+    var w = size;
+    var cx = w / 2;
+    var cy = w / 2;
+    var r = w / 2 - 8;
+    ctx.clearRect(0, 0, w, w);
+
+    /* 外圈 */
+    ctx.beginPath();
+    ctx.arc(cx, cy, r + 5, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,.055)";
+    ctx.fill();
+
+    var items = state.items;
+
+    if (!items.length) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255,255,255,.05)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,.12)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#8a7c6f";
+      ctx.font = "600 " + Math.max(14, r * 0.09) + "px 'PingFang SC','Microsoft YaHei',sans-serif";
+      ctx.fillText("还没有数据", cx, cy);
+      return;
+    }
+
+    var spans = computeSpans(items);
+
+    items.forEach(function(item, idx){
+      var seg = spans[idx];
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(seg.start + rotation);
+
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, r, 0, seg.span);
+      ctx.closePath();
+      ctx.fillStyle = colorFor(idx, items.length);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,.20)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      /* 文字 */
+      if (seg.span > 0.10) {
+        ctx.rotate(seg.span / 2);
+        ctx.textAlign = "right";
+        ctx.textBaseline = "middle";
+        var fontSize = Math.max(11, Math.min(17, r * 0.085, seg.span * r * 0.62));
+        ctx.font = "600 " + fontSize + "px 'PingFang SC','Microsoft YaHei',sans-serif";
+        ctx.fillStyle = "rgba(255,255,255,.96)";
+        ctx.shadowColor = "rgba(0,0,0,.35)";
+        ctx.shadowBlur = 4;
+        ctx.fillText(fitText(item.name, r * 0.66), r - 18, 0);
+      }
+      ctx.restore();
+    });
+
+    /* 中心圆 */
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.16, 0, Math.PI * 2);
+    var grad = ctx.createRadialGradient(cx - r * 0.05, cy - r * 0.05, r * 0.02, cx, cy, r * 0.18);
+    grad.addColorStop(0, "#3a2e25");
+    grad.addColorStop(1, "#1a1410");
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255,176,58,.45)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#ffb03a";
+    ctx.font = "700 " + (r * 0.12) + "px 'PingFang SC','Microsoft YaHei',sans-serif";
+    ctx.fillText("吃", cx, cy);
+    ctx.restore();
+  }
+
+  function resizeCanvas(){
+    var rect = wrap.getBoundingClientRect();
+    var width = Math.max(160, Math.round(rect.width));
+    var dpr = window.devicePixelRatio || 1;
+    size = width;
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(width * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+
+  /* ---------------- 列表 ---------------- */
+
+  function renderList(){
+    var items = state.items;
+    var weights = items.map(function(it){ return weightOf(it.name); });
+    var total = weights.reduce(function(s, w){ return s + w; }, 0) || 1;
+
+    itemCountEl.textContent = items.length + " 家";
+
+    if (!items.length) {
+      listEl.innerHTML = '<li class="empty-tip">列表为空，先添加一家吧</li>';
+      return;
+    }
+
+    listEl.innerHTML = items.map(function(it, i){
+      var percent = Math.round(weights[i] / total * 100);
+      return '<li>' +
+        '<span class="dot" style="background:' + colorFor(i, items.length) + '"></span>' +
+        '<span class="name">' + escapeHtml(it.name) + '</span>' +
+        '<span class="weight">' + percent + '%</span>' +
+        '<button class="del" data-index="' + i + '" title="删除" aria-label="删除">×</button>' +
+        '</li>';
+    }).join("");
+  }
+
+  function escapeHtml(str){
+    return str.replace(/[&<>"']/g, function(ch){
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch];
+    });
+  }
+
+  /* ---------------- 抽取 ---------------- */
+
+  function pickWeighted(items){
+    var weights = items.map(function(it){ return weightOf(it.name); });
+    var total = weights.reduce(function(s, w){ return s + w; }, 0);
+    var rand = Math.random() * total;
+    for (var i = 0; i < items.length; i++) {
+      rand -= weights[i];
+      if (rand < 0) return i;
+    }
+    return items.length - 1;
+  }
+
+  function spin(){
+    if (spinning) return;
+    var items = state.items;
+    if (!items.length) {
+      toast("请先添加至少一家店铺");
+      return;
+    }
+
+    spinning = true;
+    spinBtn.disabled = true;
+    hideResult();
+
+    var pickedIndex = pickWeighted(items);
+    var pickedName = items[pickedIndex].name;
+
+    /* 权重更新：抽中者减半，该降权在最近 7 次抽选后自动失效 */
+    var recovered = null;
+    state.history.push(pickedName);
+    if (state.history.length > WINDOW) {
+      recovered = state.history.shift();
+    }
+    saveState();
+    renderList();
+
+    /* 让指针最终停在选中扇区 */
+    var spans = computeSpans(state.items);
+    var seg = spans[pickedIndex];
+    var center = seg.start + seg.span / 2;
+    var jitter = (Math.random() - 0.5) * seg.span * 0.6;
+    var base = -Math.PI / 2 - center + jitter;
+    var target = base + Math.ceil((rotation + Math.PI * 2 * 5 - base) / (Math.PI * 2)) * Math.PI * 2;
+
+    var startRotation = rotation;
+    var duration = 3800 + Math.random() * 600;
+    var startTime = null;
+
+    function frame(now){
+      if (startTime === null) startTime = now;
+      var progress = Math.min(1, (now - startTime) / duration);
+      var eased = 1 - Math.pow(1 - progress, 3);
+      rotation = startRotation + (target - startRotation) * eased;
+      draw();
+
+      if (progress < 1) {
+        requestAnimationFrame(frame);
+      } else {
+        rotation = ((target % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+        draw();
+        spinning = false;
+        spinBtn.disabled = false;
+
+        resultNameEl.textContent = pickedName;
+        resultNoteEl.textContent = "该店权重已减半，" + WINDOW + " 次抽选后自动恢复" +
+          (recovered && recovered !== pickedName ? "；「" + recovered + "」权重已恢复" : "");
+        resultEl.classList.add("show");
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function hideResult(){
+    resultEl.classList.remove("show");
+  }
+
+  /* ---------------- 增删 ---------------- */
+
+  function addItem(){
+    if (spinning) return;
+    var name = newNameEl.value.trim();
+    if (!name) {
+      toast("请输入店铺名称");
+      newNameEl.focus();
+      return;
+    }
+    var exists = state.items.some(function(it){ return it.name === name; });
+    if (exists) {
+      toast("「" + name + "」已经在列表里了");
+      return;
+    }
+    state.items.push({ name: name });
+    newNameEl.value = "";
+    saveState();
+    renderList();
+    draw();
+    toast("已添加「" + name + "」");
+  }
+
+  function deleteItem(index){
+    if (spinning) return;
+    var item = state.items[index];
+    if (!item) return;
+    state.items.splice(index, 1);
+    state.history = state.history.filter(function(n){ return n !== item.name; });
+    saveState();
+    renderList();
+    draw();
+  }
+
+  /* ---------------- 交互绑定 ---------------- */
+
+  addBtn.addEventListener("click", addItem);
+  newNameEl.addEventListener("keydown", function(e){
+    if (e.key === "Enter") addItem();
+  });
+
+  listEl.addEventListener("click", function(e){
+    var btn = e.target.closest(".del");
+    if (!btn) return;
+    var index = Number(btn.dataset.index);
+    var item = state.items[index];
+    if (!item) return;
+    if (confirm("确定删除「" + item.name + "」？")) deleteItem(index);
+  });
+
+  spinBtn.addEventListener("click", spin);
+  resultCloseEl.addEventListener("click", hideResult);
+  resultEl.addEventListener("click", function(e){
+    if (e.target === resultEl) hideResult();
+  });
+
+  var toastTimer = null;
+  function toast(message){
+    toastEl.textContent = message;
+    toastEl.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toastEl.classList.remove("show"); }, 1800);
+  }
+
+  /* ---------------- 初始化 ---------------- */
+
+  if (window.ResizeObserver) {
+    new ResizeObserver(resizeCanvas).observe(wrap);
+  } else {
+    window.addEventListener("resize", resizeCanvas);
+  }
+
+  renderList();
+  resizeCanvas();
+})();
+</script>
+</body>
+</html>
